@@ -6,7 +6,7 @@
 
 python3.pkgs.buildPythonApplication (finalAttrs: {
   pname = "flux-local";
-  version = "8.0.0";
+  version = "8.1.0";
   pyproject = true;
 
   src = fetchFromGitHub {
