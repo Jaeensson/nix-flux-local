@@ -6,7 +6,7 @@ A Nix flake packaging [flux-local](https://github.com/allenporter/flux-local) â€
 
 ### NixOS system configuration
 
-Add the flake as an input and include the package in `environment.systemPackages`:
+Add the flake as an input, inject the package into `pkgs` via an overlay, then reference it as `pkgs.flux-local` anywhere in your modules:
 
 ```nix
 # flake.nix
@@ -21,9 +21,12 @@ Add the flake as an input and include the package in `environment.systemPackages
       system = "x86_64-linux";
       modules = [
         {
-          environment.systemPackages = [
-            nix-flux-local.packages.x86_64-linux.flux-local
+          nixpkgs.overlays = [
+            (final: prev: {
+              flux-local = nix-flux-local.packages.${final.system}.flux-local;
+            })
           ];
+          environment.systemPackages = [ pkgs.flux-local ];
         }
       ];
     };
@@ -31,9 +34,11 @@ Add the flake as an input and include the package in `environment.systemPackages
 }
 ```
 
+With the overlay in place, `pkgs.flux-local` is available in any NixOS or Home Manager module without needing to pass the flake input through `specialArgs`.
+
 ### Home Manager
 
-Add the flake as an input and include the package in `home.packages`:
+Add the flake as an input, inject the package via an overlay, then reference it as `pkgs.flux-local` in your Home Manager modules:
 
 ```nix
 # flake.nix
@@ -44,14 +49,23 @@ Add the flake as an input and include the package in `home.packages`:
     nix-flux-local.url = "github:Jaeensson/nix-flux-local";
   };
 
-  outputs = { nixpkgs, home-manager, nix-flux-local, ... }: {
+  outputs = { nixpkgs, home-manager, nix-flux-local, ... }:
+  let
+    system = "x86_64-linux";
+    pkgs = import nixpkgs {
+      inherit system;
+      overlays = [
+        (final: prev: {
+          flux-local = nix-flux-local.packages.${system}.flux-local;
+        })
+      ];
+    };
+  in {
     homeConfigurations.your-username = home-manager.lib.homeManagerConfiguration {
-      pkgs = nixpkgs.legacyPackages.x86_64-linux;
+      inherit pkgs;
       modules = [
         {
-          home.packages = [
-            nix-flux-local.packages.x86_64-linux.flux-local
-          ];
+          home.packages = [ pkgs.flux-local ];
         }
       ];
     };
