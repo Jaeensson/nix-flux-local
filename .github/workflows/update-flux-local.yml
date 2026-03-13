@@ -1,0 +1,84 @@
+name: Update flux-local
+
+on:
+  schedule:
+    - cron: '0 6 * * 1' # Every Monday at 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v30
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Check upstream version
+        id: version-check
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          LATEST=$(gh api repos/allenporter/flux-local/releases/latest --jq '.tag_name')
+          CURRENT=$(grep -oP 'version = "\K[^"]+' default.nix)
+          echo "latest=$LATEST" >> $GITHUB_OUTPUT
+          echo "current=$CURRENT" >> $GITHUB_OUTPUT
+          if [ "$LATEST" = "$CURRENT" ]; then
+            echo "Already up to date ($CURRENT). Skipping."
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "New version available: $CURRENT -> $LATEST"
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run nix-update
+        if: steps.version-check.outputs.skip == 'false'
+        run: |
+          nix run nixpkgs#nix-update -- \
+            --version="${{ steps.version-check.outputs.latest }}" \
+            --flake \
+            flux-local
+
+      - name: Get GitHub App bot identity
+        id: app-identity
+        if: steps.version-check.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          APP_SLUG=$(gh api /app --jq '.slug')
+          APP_USER_ID=$(gh api "/users/${APP_SLUG}[bot]" --jq '.id')
+          echo "name=${APP_SLUG}[bot]" >> $GITHUB_OUTPUT
+          echo "email=${APP_USER_ID}+${APP_SLUG}[bot]@users.noreply.github.com" >> $GITHUB_OUTPUT
+
+      - name: Create pull request
+        if: steps.version-check.outputs.skip == 'false'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          branch: auto-update/flux-local
+          commit-message: "chore: update flux-local to ${{ steps.version-check.outputs.latest }}"
+          title: "chore: update flux-local to ${{ steps.version-check.outputs.latest }}"
+          body: |
+            Automated update of `flux-local` from `${{ steps.version-check.outputs.current }}` to `${{ steps.version-check.outputs.latest }}`.
+
+            **Upstream release:** https://github.com/allenporter/flux-local/releases/tag/${{ steps.version-check.outputs.latest }}
+          committer: ${{ steps.app-identity.outputs.name }} <${{ steps.app-identity.outputs.email }}>
+          author: ${{ steps.app-identity.outputs.name }} <${{ steps.app-identity.outputs.email }}>
+          delete-branch: true
