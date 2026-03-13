@@ -40,7 +40,7 @@ python3.pkgs.buildPythonApplication (finalAttrs: {
     description = "Flux-local is a set of tools and libraries for managing a local flux gitops repository focused on validation steps to help improve quality of commits, PRs, and general local testing";
     homepage = "https://github.com/allenporter/flux-local";
     license = lib.licenses.asl20;
-    maintainers = with lib.maintainers; [ ];
+    maintainers = [ "Jaeensson" ];
     mainProgram = "flux-local";
   };
 })
