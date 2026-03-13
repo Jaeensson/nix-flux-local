@@ -56,17 +56,6 @@ jobs:
             --flake \
             flux-local
 
-      - name: Get GitHub App bot identity
-        id: app-identity
-        if: steps.version-check.outputs.skip == 'false'
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: |
-          APP_SLUG=$(gh api /app --jq '.slug')
-          APP_USER_ID=$(gh api "/users/${APP_SLUG}[bot]" --jq '.id')
-          echo "name=${APP_SLUG}[bot]" >> $GITHUB_OUTPUT
-          echo "email=${APP_USER_ID}+${APP_SLUG}[bot]@users.noreply.github.com" >> $GITHUB_OUTPUT
-
       - name: Create pull request
         if: steps.version-check.outputs.skip == 'false'
         uses: peter-evans/create-pull-request@v7
@@ -79,6 +68,4 @@ jobs:
             Automated update of `flux-local` from `${{ steps.version-check.outputs.current }}` to `${{ steps.version-check.outputs.latest }}`.
 
             **Upstream release:** https://github.com/allenporter/flux-local/releases/tag/${{ steps.version-check.outputs.latest }}
-          committer: ${{ steps.app-identity.outputs.name }} <${{ steps.app-identity.outputs.email }}>
-          author: ${{ steps.app-identity.outputs.name }} <${{ steps.app-identity.outputs.email }}>
           delete-branch: true
